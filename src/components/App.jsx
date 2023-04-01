@@ -1,4 +1,3 @@
-import { Component } from 'react';
 import { Searchbar } from './Searchbar/Searchbar';
 import { ImageGallery } from './ImageGallery/ImageGallery';
 import { Container } from './App.styled';
@@ -8,104 +7,75 @@ import { Button } from 'components/Button/Button';
 import { Modal } from 'components/Modal/Modal';
 import { getImg } from 'services/getImg';
 import { Wrapper } from 'components/ImageGallery/ImageGallery.styled';
+import { useEffect, useState } from 'react';
 
-export class App extends Component {
-  state = {
-    value: '',
-    gallery: [],
-    totalImg: 0,
-    page: 1,
-    isModalOpen: false,
-    modalUrl: '',
-    isLoading: false,
-    isShowBtn: false,
-  };
+export const App = () => {
+  const [value, setValue] = useState('');
+  const [gallery, setGallery] = useState([]);
+  const [totalImg, setTotalImg] = useState(0);
+  const [page, setPage] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalUrl, setModalUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  componentDidUpdate(_, prevState) {
-    if (
-      prevState.page !== this.state.page ||
-      prevState.value !== this.state.value
-    ) {
-      this.setState({
-        isLoading: true,
-      });
-      this.createGallery();
+  useEffect(() => {
+    if (value) {
+      setIsLoading(true);
+      try {
+        getImg(value, page)
+          .then(data => {
+            if (data.total === 0) {
+              Notify.failure('No results found!');
+            }
+
+            setGallery(prevState => {
+              return page === 1 ? data.hits : [...prevState, ...data.hits];
+            });
+            setTotalImg(data.totalHits);
+          })
+          .finally(() => setIsLoading(false));
+      } catch (error) {
+        console.log(error);
+      }
     }
-  }
-  createGallery = () => {
-    const value = this.state.value;
-    const page = this.state.page;
-    try {
-      getImg(value, page)
-        .then(data => {
-          if (data.total === 0) {
-            Notify.failure('No results found!');
-          }
+  }, [page, value]);
 
-          this.setState(prevState => ({
-            gallery:
-              page === 1 ? data.hits : [...prevState.gallery, ...data.hits],
-            totalImg: data.totalHits,
-          }));
-        })
-        .finally(() => this.setState({ isLoading: false }));
-    } catch (error) {
-      console.log(error);
-    }
+  const onClick = () => {
+    setPage(prevState => prevState + 1);
   };
 
-  onClick = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
+  const handleModal = url => {
+    setIsModalOpen(true);
+    setModalUrl(url);
   };
 
-  handleModal = url => {
-    this.setState({
-      isModalOpen: true,
-      modalUrl: url,
-    });
-  };
-
-  closeModal = ({ target }) => {
+  const closeModal = ({ target }) => {
     if (target.nodeName !== 'IMG') {
-      this.setState({
-        isModalOpen: false,
-      });
+      setIsModalOpen(false);
     }
   };
 
-  onSubmit = query => {
+  const onSubmit = query => {
     if (query.trim() === '') {
       Notify.info('Enter search query!');
     } else {
-      this.setState({
-        value: query,
-        page: 1,
-        gallery: [],
-        isShowBtn: false,
-      });
+      setValue(query);
+      setPage(1);
+      setGallery([]);
     }
   };
 
-  render() {
-    return (
-      <Container>
-        <Searchbar onSubmit={this.onSubmit} />
-        <Wrapper>
-          <ImageGallery
-            gallery={this.state.gallery}
-            handleModal={this.handleModal}
-          />
-          {this.state.gallery.length < this.state.totalImg && (
-            <Button onClick={this.onClick} />
-          )}
-          {this.state.isLoading && <Loader />}
-          {this.state.isModalOpen && (
-            <Modal url={this.state.modalUrl} closeModal={this.closeModal} />
-          )}
-        </Wrapper>
-      </Container>
-    );
-  }
-}
+  return (
+    <Container>
+      <Searchbar onSubmit={onSubmit} />
+      <Wrapper>
+        <ImageGallery gallery={gallery} handleModal={handleModal} />
+        {gallery.length < totalImg && isLoading === false && (
+          <Button onClick={onClick} />
+        )}
+        {isLoading && <Loader />}
+        {isModalOpen && <Modal url={modalUrl} closeModal={closeModal} />}
+      </Wrapper>
+    </Container>
+  );
+};
